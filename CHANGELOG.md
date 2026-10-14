@@ -6,6 +6,9 @@ All notable changes to `swis/decision-engine` are documented here. The format fo
 ## [Unreleased]
 
 ### Added
+- `OpenAiEngine` (driver `openai`) for OpenAI's Decisions API (`POST /v1/decisions`, default model
+  `gpt-6-luna`, calibrated): `noul` → `predicate`, `choice` and `score` natively, refusals raise a
+  `ResponseValidationException`. The `luna` named engine now uses it.
 - Typed outcomes: declare questions with `#[Choice]`, `#[Score]` and `#[Noul]` on a `TypedOutcome`
   subclass and call `Decision::for($state)->decideAs(MyClass::class)` (or `forEach()->decideAs()` /
   `settleAs()`). The property type selects the value: the answer object, a string, a backed enum
@@ -33,6 +36,9 @@ All notable changes to `swis/decision-engine` are documented here. The format fo
 
 ### Changed
 - Package description: OpenAI and Anthropic are alternative engines, not fallbacks.
+- **Breaking:** the Responses API engine is renamed `OpenAiEngine` → `OpenAiResponsesEngine`, driver
+  `openai` → `openai_responses`; the `openai` driver is now the Decisions API. The Responses API
+  setup is available as the `luna-responses` named engine. See [UPGRADE](UPGRADE.md).
 
 ## [0.1.0] — 2026-09-22
 

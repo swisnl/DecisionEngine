@@ -8,14 +8,16 @@ use Swis\DecisionEngine\Contracts\Engine;
 use Swis\DecisionEngine\Engines\Anthropic\AnthropicEngine;
 use Swis\DecisionEngine\Engines\Jev\JevEngine;
 use Swis\DecisionEngine\Engines\OpenAi\OpenAiEngine;
+use Swis\DecisionEngine\Engines\OpenAi\OpenAiResponsesEngine;
 use Swis\DecisionEngine\Exceptions\ConfigurationException;
 use Swis\DecisionEngine\Outcome\Thresholds;
 use Swis\DecisionEngine\Support\Arr;
 
 /**
  * Resolves named engines from configuration, Laravel-Manager style. Built-in drivers: `jev`,
- * `openai`, `anthropic` (see config/decision-engine.php for the `luna` and `haiku` named engines). A *named* engine (`luna`, `haiku`, …) picks a `driver` and hands the rest
- * of its config to that driver's factory.
+ * `openai` (Decisions API), `openai_responses` (Responses API) and `anthropic` (see
+ * config/decision-engine.php for the `luna`, `luna-responses` and `haiku` named engines). A *named*
+ * engine (`luna`, `haiku`, …) picks a `driver` and hands the rest of its config to that driver's factory.
  *
  * ```php
  * $engines = EngineManager::fromArray(require 'config/decision-engine.php');
@@ -46,6 +48,7 @@ final class EngineManager
     ) {
         $this->drivers[JevEngine::NAME] = fn(array $config): Engine => JevEngine::fromConfig(Arr::stringKeys($config), $this->thresholds);
         $this->drivers[OpenAiEngine::NAME] = fn(array $config): Engine => OpenAiEngine::fromConfig(Arr::stringKeys($config), $this->thresholds);
+        $this->drivers[OpenAiResponsesEngine::NAME] = fn(array $config): Engine => OpenAiResponsesEngine::fromConfig(Arr::stringKeys($config), $this->thresholds);
         $this->drivers[AnthropicEngine::NAME] = fn(array $config): Engine => AnthropicEngine::fromConfig(Arr::stringKeys($config), $this->thresholds);
     }
 

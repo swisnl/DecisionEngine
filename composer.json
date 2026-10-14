@@ -1,6 +1,6 @@
 {
     "name": "swis/decision-engine",
-    "description": "Typed, probabilistic decisions (Choice / Score / Noul) for System One tasks, powered by TypeSafe Jev, with OpenAI and Anthropic as alternative engines. Framework-agnostic with a Laravel bridge.",
+    "description": "Typed, probabilistic decisions (Choice / Score / Noul) for System One tasks, powered by TypeSafe Jev, with OpenAI (Decisions and Responses APIs) and Anthropic as alternative engines. Framework-agnostic with a Laravel bridge.",
     "type": "library",
     "license": "MIT",
     "keywords": ["typesafe", "jev", "system-one", "decision", "classification", "llm", "laravel"],

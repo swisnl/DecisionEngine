@@ -24,7 +24,7 @@ use Swis\DecisionEngine\Transport\HttpResponse;
 interface Engine
 {
     /**
-     * Driver name: `jev`, `openai`, `anthropic` or a custom one.
+     * Driver name: `jev`, `openai`, `openai_responses`, `anthropic` or a custom one.
      */
     public function name(): string;
 

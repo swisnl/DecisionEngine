@@ -19,6 +19,7 @@ abstract class TestCase extends Testbench
     {
         $app['config']->set('decision-engine.engines.jev.api_key', 'sk-test');
         $app['config']->set('decision-engine.engines.luna.api_key', 'sk-openai');
+        $app['config']->set('decision-engine.engines.luna-responses.api_key', 'sk-openai');
         $app['config']->set('decision-engine.engines.haiku.api_key', 'sk-anthropic');
     }
 

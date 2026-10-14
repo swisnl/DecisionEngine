@@ -36,8 +36,9 @@ return [
     // Name of the engine used when a decision does not call ->using().
     'default' => env('DECISION_ENGINE', 'jev'),
 
-    // Named engines. `driver` selects the implementation (jev | openai | anthropic | custom via
-    // EngineManager::extend()); every other key is handed to that driver.
+    // Named engines. `driver` selects the implementation (jev | openai | openai_responses | anthropic |
+    // custom via EngineManager::extend()); every other key is handed to that driver.
+    // `openai` is OpenAI's Decisions API; `openai_responses` emulates it with structured output.
     'engines' => [
         'jev' => [
             'driver' => 'jev',
@@ -47,6 +48,12 @@ return [
         ],
         'luna' => [
             'driver' => 'openai',
+            'api_key' => env('OPENAI_API_KEY'),
+            'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com'),
+            'model' => 'gpt-6-luna',
+        ],
+        'luna-responses' => [
+            'driver' => 'openai_responses',
             'api_key' => env('OPENAI_API_KEY'),
             'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com'),
             'model' => 'gpt-5.6-luna',
