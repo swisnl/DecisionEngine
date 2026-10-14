@@ -9,7 +9,7 @@ use Swis\DecisionEngine\Support\Arr;
 /**
  * Metadata about how an outcome was produced.
  *
- * `calibrated` is the flag that matters: Jev's probabilities are calibrated, the LLM engines'
+ * `calibrated` is the flag that matters: Jev's and OpenAI Decisions' probabilities are calibrated, the LLM engines'
  * probabilities are self-reported. Downstream code that gates on confidence should check it.
  *
  * ```php

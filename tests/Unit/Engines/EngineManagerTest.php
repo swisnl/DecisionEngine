@@ -108,8 +108,9 @@ it('builds a typed Config from the shipped file and env', function (): void {
     $config = Config::fromArray(require __DIR__ . '/../../../config/decision-engine.php');
 
     expect($config->defaultEngine)->toBe('jev')
-        ->and(array_keys($config->engines))->toBe(['jev', 'luna', 'haiku'])
+        ->and(array_keys($config->engines))->toBe(['jev', 'luna', 'luna-responses', 'haiku'])
         ->and($config->engines['luna']['driver'])->toBe('openai')
+        ->and($config->engines['luna-responses']['driver'])->toBe('openai_responses')
         ->and($config->retry->maxRetries)->toBe(2)
         ->and($config->retry->retriesStatus(503))->toBeTrue()
         ->and($config->concurrency)->toBe(10)

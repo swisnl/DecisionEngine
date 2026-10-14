@@ -13,6 +13,7 @@ use Swis\DecisionEngine\Engines\Anthropic\AnthropicEngine;
 use Swis\DecisionEngine\Engines\EngineManager;
 use Swis\DecisionEngine\Engines\Jev\JevEngine;
 use Swis\DecisionEngine\Engines\OpenAi\OpenAiEngine;
+use Swis\DecisionEngine\Engines\OpenAi\OpenAiResponsesEngine;
 use Swis\DecisionEngine\Exceptions\ConnectionException;
 use Swis\DecisionEngine\Exceptions\ServerException;
 use Swis\DecisionEngine\Laravel\Events\Decided;
@@ -29,6 +30,7 @@ it('registers singletons and resolves named engines from config', function (): v
         ->and($this->app->make(Transport::class))->toBeInstanceOf(CurlTransport::class)
         ->and($this->app->make(EngineManager::class)->engine())->toBeInstanceOf(JevEngine::class)
         ->and($this->app->make(EngineManager::class)->engine('luna'))->toBeInstanceOf(OpenAiEngine::class)
+        ->and($this->app->make(EngineManager::class)->engine('luna-responses'))->toBeInstanceOf(OpenAiResponsesEngine::class)
         ->and($this->app->make(EngineManager::class)->engine('haiku'))->toBeInstanceOf(AnthropicEngine::class)
         ->and(FluentDecision::resolveClient())->toBe($this->app->make(Client::class))
         ->and(Decision::engines())->toBe($this->app->make(EngineManager::class))

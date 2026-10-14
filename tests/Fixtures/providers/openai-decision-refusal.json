@@ -1,0 +1,6 @@
+{
+  "model": "gpt-6-luna",
+  "answers": [
+    {"type": "refusal", "name": "department"}
+  ]
+}

@@ -13,6 +13,7 @@ use Swis\DecisionEngine\Engines\Llm\AnswerNormalizer;
 use Swis\DecisionEngine\Engines\Llm\PromptBuilder;
 use Swis\DecisionEngine\Engines\Llm\SchemaBuilder;
 use Swis\DecisionEngine\Engines\OpenAi\OpenAiEngine;
+use Swis\DecisionEngine\Engines\OpenAi\OpenAiResponsesEngine;
 use Swis\DecisionEngine\Exceptions\ConfigurationException;
 use Swis\DecisionEngine\Exceptions\InvalidDecisionException;
 use Swis\DecisionEngine\Exceptions\RateLimitException;
@@ -141,9 +142,9 @@ describe('AnswerNormalizer', function (): void {
     });
 });
 
-describe('OpenAiEngine', function (): void {
+describe('OpenAiResponsesEngine', function (): void {
     it('prepares a Responses API request with strict json_schema', function (): void {
-        $engine = OpenAiEngine::fromConfig(['api_key' => 'sk-openai', 'options' => ['reasoning' => ['effort' => 'none']], 'organization' => 'org_1']);
+        $engine = OpenAiResponsesEngine::fromConfig(['api_key' => 'sk-openai', 'options' => ['reasoning' => ['effort' => 'none']], 'organization' => 'org_1']);
         $prepared = $engine->prepare(triageRequest()->withModel(null)->withEngineOptions(['reasoning' => ['effort' => 'low'], 'temperature' => 0.2, 'merge_body' => ['store' => true, 'metadata' => ['trace' => 't']]]));
         $body = $prepared->json();
 
@@ -163,18 +164,18 @@ describe('OpenAiEngine', function (): void {
             ->and($body['temperature'])->toBe(0.2)
             ->and($body['store'])->toBeTrue()
             ->and($body['metadata'])->toBe(['trace' => 't'])
-            ->and($prepared->meta['engine'])->toBe('openai')
+            ->and($prepared->meta['engine'])->toBe('openai_responses')
             ->and($engine->capabilities()->calibrated)->toBeFalse()
             ->and($engine->prepare(triageRequest()->withModel('gpt-5.6-mini'))->json()['model'])->toBe('gpt-5.6-mini');
 
-        expect(fn() => OpenAiEngine::fromConfig([]))->toThrow(ConfigurationException::class, 'engines.openai.api_key');
+        expect(fn() => OpenAiResponsesEngine::fromConfig([]))->toThrow(ConfigurationException::class, 'engines.openai_responses.api_key');
     });
 
     it('interprets a response into an uncalibrated Outcome', function (): void {
-        $engine = OpenAiEngine::fromConfig(['api_key' => 'k']);
+        $engine = OpenAiResponsesEngine::fromConfig(['api_key' => 'k']);
         $outcome = $engine->interpret(triageRequest(), HttpResponse::jsonResponse(200, providerBody('openai-response'), ['x-request-id' => 'req_oai'])->withLatency(900.0));
 
-        expect($outcome->engine)->toBe('openai')
+        expect($outcome->engine)->toBe('openai_responses')
             ->and($outcome->model)->toBe('gpt-5.6-luna-2026-06-01')
             ->and($outcome->department->choice)->toBe('billing')
             ->and($outcome->department->probability('billing'))->toBe(0.91)
@@ -191,7 +192,7 @@ describe('OpenAiEngine', function (): void {
     });
 
     it('renormalizes malformed probabilities and clamps values', function (): void {
-        $outcome = OpenAiEngine::fromConfig(['api_key' => 'k'])->interpret(triageRequest(), HttpResponse::jsonResponse(200, providerBody('openai-malformed')));
+        $outcome = OpenAiResponsesEngine::fromConfig(['api_key' => 'k'])->interpret(triageRequest(), HttpResponse::jsonResponse(200, providerBody('openai-malformed')));
 
         expect(round(array_sum($outcome->department->probabilities), 6))->toBe(1.0)
             ->and($outcome->department->choice)->toBe('billing')
@@ -202,7 +203,7 @@ describe('OpenAiEngine', function (): void {
     });
 
     it('maps refusals, incomplete responses and rate limits', function (): void {
-        $engine = OpenAiEngine::fromConfig(['api_key' => 'k']);
+        $engine = OpenAiResponsesEngine::fromConfig(['api_key' => 'k']);
 
         expect(fn() => $engine->interpret(triageRequest(), HttpResponse::jsonResponse(200, providerBody('openai-refusal'))))->toThrow(ResponseValidationException::class, 'refused')
             ->and(fn() => $engine->interpret(triageRequest(), HttpResponse::jsonResponse(200, providerBody('openai-incomplete'))))->toThrow(ResponseValidationException::class, 'max_output_tokens')
@@ -214,7 +215,109 @@ describe('OpenAiEngine', function (): void {
             $engine->interpret(triageRequest(), HttpResponse::jsonResponse(429, providerBody('openai-429'), ['retry-after' => '2', 'x-request-id' => 'req_lim']));
             $this->fail('expected RateLimitException');
         } catch (RateLimitException $e) {
-            expect($e->retryAfterMs)->toBe(2000)->and($e->engine)->toBe('openai')->and($e->requestId)->toBe('req_lim')->and($e->getMessage())->toContain('Rate limit reached');
+            expect($e->retryAfterMs)->toBe(2000)->and($e->engine)->toBe('openai_responses')->and($e->requestId)->toBe('req_lim')->and($e->getMessage())->toContain('Rate limit reached');
+        }
+    });
+});
+
+describe('OpenAiEngine (Decisions API)', function (): void {
+    it('prepares a Decisions API request with predicate, choice and score questions', function (): void {
+        $engine = OpenAiEngine::fromConfig(['api_key' => 'sk-openai', 'project' => 'proj_1']);
+        $prepared = $engine->prepare(triageRequest()->withModel(null)->withEngineOptions(['merge_body' => ['input' => 'merged']]));
+        $body = $prepared->json();
+
+        expect($prepared->url)->toBe('https://api.openai.com/v1/decisions')
+            ->and($prepared->header('Authorization'))->toBe('Bearer sk-openai')
+            ->and($prepared->header('OpenAI-Project'))->toBe('proj_1')
+            ->and($prepared->meta['engine'])->toBe('openai')
+            ->and($body['model'])->toBe('gpt-6-luna')
+            ->and($body['input'])->toBe('merged')
+            ->and(json_decode($engine->prepare(triageRequest())->json()['input'], true))->toBe(triageRequest()->state->value())
+            ->and($body['questions'])->toBe([
+                [
+                    'type' => 'choice',
+                    'name' => 'department',
+                    'instructions' => 'Which team should handle this?',
+                    'choices' => [
+                        ['value' => 'returns', 'description' => "Exchanges, wrong or damaged items\nNot for: Refund requests\nExamples: wrong size; arrived broken"],
+                        ['value' => 'shipping', 'description' => 'Delivery status, delays, lost packages'],
+                        ['value' => 'billing', 'description' => 'Charges, invoices, payment problems'],
+                        ['value' => 'other'],
+                    ],
+                ],
+                [
+                    'type' => 'score',
+                    'name' => 'bug_severity',
+                    'instructions' => 'How severe is the reported issue?',
+                    'levels' => [
+                        ['label' => '0', 'description' => 'Cosmetic; no impact to functionality'],
+                        ['label' => '1', 'description' => 'Broken or degraded feature, but workaround exists'],
+                        ['label' => '2', 'description' => "Blocking issue; no workaround exists\nExamples: cannot log in; data loss"],
+                    ],
+                ],
+                [
+                    'type' => 'predicate',
+                    'name' => 'is_human_escalation',
+                    'instructions' => "Is the customer asking for a human agent?\nTrue when: Explicitly asks for a person, agent or call\nFalse when: Only describes the problem",
+                ],
+                [
+                    'type' => 'predicate',
+                    'name' => 'same_as_record_18',
+                    'instructions' => '{"potential_duplicate":{"id":18,"email":"a@example.com"},"question":"Is this the same customer as `potential_duplicate`?"}',
+                ],
+            ])
+            ->and($engine->capabilities()->calibrated)->toBeTrue()
+            ->and($engine->capabilities()->supportsNullState)->toBeFalse()
+            ->and($engine->prepare(DecisionRequest::fromArray(['state' => 'x', 'questions' => ['n' => ['type' => 'noul']]]))->json()['questions'])->toBe([['type' => 'predicate', 'name' => 'n', 'instructions' => '']])
+            ->and($engine->prepare(triageRequest()->withModel('gpt-6-luna-2026-09-15'))->json()['model'])->toBe('gpt-6-luna-2026-09-15')
+            ->and($engine->prepare(DecisionRequest::fromArray(['state' => 'charged twice', 'questions' => ['n' => ['type' => 'noul', 'instructions' => 'Urgent?']]]))->json()['input'])->toBe('charged twice');
+
+        expect(fn() => OpenAiEngine::fromConfig([]))->toThrow(ConfigurationException::class, 'engines.openai.api_key')
+            ->and(fn() => $engine->prepare(DecisionRequest::fromArray(['state' => 'x', 'questions' => ['v' => ['type' => 'vector']]])))->toThrow(InvalidDecisionException::class, 'vector');
+    });
+
+    it('interprets a Decisions API response into Jev-shaped answers', function (): void {
+        $engine = OpenAiEngine::fromConfig(['api_key' => 'k']);
+        $outcome = $engine->interpret(triageRequest(), HttpResponse::jsonResponse(200, providerBody('openai-decision-response'), ['x-request-id' => 'req_dec'])->withLatency(120.0));
+
+        expect($outcome->engine)->toBe('openai')
+            ->and($outcome->model)->toBe('gpt-6-luna')
+            ->and($outcome->department->choice)->toBe('billing')
+            ->and($outcome->department->probability('billing'))->toBe(0.91)
+            ->and($outcome->department->confidence)->toBe(0.88)
+            ->and($outcome->bug_severity->score)->toBe(1.43)
+            ->and($outcome->bug_severity->confidence)->toBe(0.35)
+            ->and($outcome->bug_severity->probabilities)->toBe([0 => 0.0, 1 => 0.57, 2 => 0.43])
+            ->and($outcome->bug_severity->levelDescription())->toBe('Broken or degraded feature, but workaround exists')
+            ->and($outcome->is_human_escalation->noul)->toBe(0.99)
+            ->and($outcome->same_as_record_18->noul)->toBe(0.12)
+            ->and($outcome->usage->inputTokens)->toBe(420)
+            ->and($outcome->usage->outputTokens)->toBe(0)
+            ->and($outcome->meta->calibrated)->toBeTrue()
+            ->and($outcome->meta->requestId)->toBe('req_dec')
+            ->and($outcome->meta->latencyMs)->toBe(120.0);
+    });
+
+    it('maps refusals, missing or mistyped answers and rate limits', function (): void {
+        $engine = OpenAiEngine::fromConfig(['api_key' => 'k']);
+        $body = providerBody('openai-decision-response');
+        $withAnswers = function (callable $edit) use ($body): HttpResponse {
+            $body['answers'] = $edit($body['answers']);
+
+            return HttpResponse::jsonResponse(200, $body);
+        };
+
+        expect(fn() => $engine->interpret(triageRequest(), HttpResponse::jsonResponse(200, providerBody('openai-decision-refusal'))))->toThrow(ResponseValidationException::class, 'refused to answer [department]')
+            ->and(fn() => $engine->interpret(triageRequest(), HttpResponse::jsonResponse(200, ['answers' => 'x'])))->toThrow(ResponseValidationException::class, 'list of answers')
+            ->and(fn() => $engine->interpret(triageRequest(), $withAnswers(fn(array $a) => array_slice($a, 1))))->toThrow(ResponseValidationException::class, 'answers.department')
+            ->and(fn() => $engine->interpret(triageRequest(), $withAnswers(fn(array $a) => [...array_slice($a, 0, 2), ['type' => 'choice', 'name' => 'is_human_escalation'], $a[3]])))->toThrow(ResponseValidationException::class, 'answers.is_human_escalation.type')
+            ->and(fn() => $engine->interpret(triageRequest(), $withAnswers(fn(array $a) => [...array_slice($a, 0, 2), ['type' => 'predicate', 'name' => 'is_human_escalation', 'probability' => 'high'], $a[3]])))->toThrow(ResponseValidationException::class, 'answers.is_human_escalation.probability');
+
+        try {
+            $engine->interpret(triageRequest(), HttpResponse::jsonResponse(429, providerBody('openai-429'), ['retry-after' => '2', 'x-request-id' => 'req_lim']));
+            $this->fail('expected RateLimitException');
+        } catch (RateLimitException $e) {
+            expect($e->retryAfterMs)->toBe(2000)->and($e->engine)->toBe('openai')->and($e->requestId)->toBe('req_lim');
         }
     });
 });
@@ -293,47 +396,53 @@ it('produces structurally identical outcomes for the same decision through all t
         'default' => 'jev',
         'engines' => [
             'jev' => ['driver' => 'jev', 'api_key' => 'k'],
-            'luna' => ['driver' => 'openai', 'api_key' => 'k', 'model' => 'gpt-5.6-luna'],
+            'luna' => ['driver' => 'openai', 'api_key' => 'k', 'model' => 'gpt-6-luna'],
+            'luna-responses' => ['driver' => 'openai_responses', 'api_key' => 'k', 'model' => 'gpt-5.6-luna'],
             'haiku' => ['driver' => 'anthropic', 'api_key' => 'k', 'model' => 'claude-haiku-4-5'],
         ],
     ];
     $transport = new FakeTransport([
         HttpResponse::jsonResponse(200, $this->fixture('triage-response')),
+        HttpResponse::jsonResponse(200, providerBody('openai-decision-response')),
         HttpResponse::jsonResponse(200, providerBody('openai-response')),
         HttpResponse::jsonResponse(200, providerBody('anthropic-response')),
     ]);
     $client = new Client(EngineManager::fromArray($config), $transport);
 
     $outcomes = [];
-    foreach (['jev', 'luna', 'haiku'] as $engine) {
+    foreach (['jev', 'luna', 'luna-responses', 'haiku'] as $engine) {
         $outcomes[$engine] = Decision::fromArray($this->fixture('triage-request'))->without('same_as_record_18')->withClient($client)->using($engine)->decide();
     }
 
     $shape = fn(Outcome $o): array => array_map(fn($a) => [$a->type()?->value, array_keys($a->raw())], $o->only(['department', 'bug_severity', 'is_human_escalation']));
 
     expect($shape($outcomes['luna']))->toBe($shape($outcomes['jev']))
+        ->and($shape($outcomes['luna-responses']))->toBe($shape($outcomes['jev']))
         ->and($shape($outcomes['haiku']))->toBe($shape($outcomes['jev']))
         ->and($outcomes['jev']->meta->calibrated)->toBeTrue()
-        ->and($outcomes['luna']->meta->calibrated)->toBeFalse()
+        ->and($outcomes['luna']->meta->calibrated)->toBeTrue()
+        ->and($outcomes['luna-responses']->meta->calibrated)->toBeFalse()
         ->and($outcomes['haiku']->meta->calibrated)->toBeFalse()
-        ->and(array_map(fn(Outcome $o) => $o->department->choice, $outcomes))->toBe(['jev' => 'billing', 'luna' => 'billing', 'haiku' => 'billing'])
-        ->and(array_map(fn(Outcome $o) => $o->bug_severity->level(), $outcomes))->toBe(['jev' => 1, 'luna' => 1, 'haiku' => 1])
-        ->and($transport->sent()[1]->url)->toContain('openai.com/v1/responses')
-        ->and($transport->sent()[2]->url)->toContain('anthropic.com/v1/messages')
-        ->and(EngineManager::fromArray($config)->drivers())->toBe(['jev', 'openai', 'anthropic'])
+        ->and(array_map(fn(Outcome $o) => $o->department->choice, $outcomes))->toBe(['jev' => 'billing', 'luna' => 'billing', 'luna-responses' => 'billing', 'haiku' => 'billing'])
+        ->and(array_map(fn(Outcome $o) => $o->bug_severity->level(), $outcomes))->toBe(['jev' => 1, 'luna' => 1, 'luna-responses' => 1, 'haiku' => 1])
+        ->and($transport->sent()[1]->url)->toContain('openai.com/v1/decisions')
+        ->and($transport->sent()[2]->url)->toContain('openai.com/v1/responses')
+        ->and($transport->sent()[3]->url)->toContain('anthropic.com/v1/messages')
+        ->and(EngineManager::fromArray($config)->drivers())->toBe(['jev', 'openai', 'openai_responses', 'anthropic'])
         ->and(EngineManager::fromArray($config)->engine('luna'))->toBeInstanceOf(OpenAiEngine::class)
+        ->and(EngineManager::fromArray($config)->engine('luna-responses'))->toBeInstanceOf(OpenAiResponsesEngine::class)
         ->and(EngineManager::fromArray($config)->engine('haiku'))->toBeInstanceOf(AnthropicEngine::class)
         ->and(EngineManager::fromArray($config)->engine())->toBeInstanceOf(JevEngine::class);
 });
 
-it('runs the triage decision live on OpenAI when OPENAI_API_KEY is set', function (): void {
+it('runs the triage decision live on OpenAI when OPENAI_API_KEY is set', function (string $engine): void {
     if ((getenv('OPENAI_API_KEY') ?: '') === '') {
         $this->markTestSkipped('OPENAI_API_KEY not set');
     }
 
-    $outcome = Client::fromConfig(Config::fromEnv())->execute(triageRequest()->withEngine('luna'));
-    expect($outcome->department->options())->toBe(['returns', 'shipping', 'billing', 'other'])->and($outcome->meta->calibrated)->toBeFalse();
-})->group('live');
+    $outcome = Client::fromConfig(Config::fromEnv())->execute(triageRequest()->withEngine($engine));
+    expect($outcome->department->options())->toBe(['returns', 'shipping', 'billing', 'other'])->and($outcome->meta->calibrated)->toBe($engine === 'luna');
+})->with(['luna', 'luna-responses'])->group('live');
 
 it('runs the triage decision live on Anthropic when ANTHROPIC_API_KEY is set', function (): void {
     if ((getenv('ANTHROPIC_API_KEY') ?: '') === '') {

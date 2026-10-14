@@ -22,7 +22,7 @@ use Swis\DecisionEngine\Transport\HttpResponse;
 use Swis\DecisionEngine\Version;
 
 /**
- * TypeSafe's System One API (`POST /v1/systemone`). The default and only calibrated engine.
+ * TypeSafe's System One API (`POST /v1/systemone`). The default engine; calibrated.
  *
  * The wire body is always `{state, model, questions}` plus whatever `mergePayload()` /
  * `engineOptions(['merge_body' => …])` added.

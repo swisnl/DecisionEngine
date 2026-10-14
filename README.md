@@ -2,8 +2,9 @@
 
 Typed, probabilistic decisions for application code: **Choice / Score / Noul** questions evaluated
 against your application state, through a fluent API. TypeSafe's **Jev** (a
-System One model with calibrated probabilities) is the default engine; **OpenAI** and **Anthropic**
-models are alternative engines that emulate the same primitives via structured output.
+System One model with calibrated probabilities) is the default engine; **OpenAI's Decisions API**
+is a native alternative, and OpenAI (Responses API) and **Anthropic** models are alternative
+engines that emulate the same primitives via structured output.
 
 
 [![PHP from Packagist](https://img.shields.io/packagist/php-v/swisnl/decision-engine.svg)](https://packagist.org/packages/swisnl/decision-engine)
@@ -108,14 +109,23 @@ Decision::for($state)->model('jev-1.13.0')->…              // override the eng
 Decision::for($state)->using('haiku')->model('claude-haiku-4-5')->…
 ```
 
-Engines are resolved by an `EngineManager` with the built-in drivers `jev`, `openai` and
-`anthropic`, and config-defined *named* engines:
+Engines are resolved by an `EngineManager` with the built-in drivers `jev`, `openai`,
+`openai_responses` and `anthropic`, and config-defined *named* engines:
 
-| Name (default config) | Driver | Default model | Calibrated |
-|---|---|---|---|
-| `jev` (default) | `jev` | `jev-latest` | **yes** |
-| `luna` | `openai` | `gpt-5.6-luna` | no |
-| `haiku` | `anthropic` | `claude-haiku-4-5` | no |
+| Name (default config) | Driver | API | Default model | Calibrated |
+|---|---|---|---|---|
+| `jev` (default) | `jev` | TypeSafe `/v1/systemone` | `jev-latest` | **yes** |
+| `luna` | `openai` | OpenAI Decisions `/v1/decisions` (beta) | `gpt-6-luna` | **yes** |
+| `luna-responses` | `openai_responses` | OpenAI Responses `/v1/responses` | `gpt-5.6-luna` | no |
+| `haiku` | `anthropic` | Anthropic Messages | `claude-haiku-4-5` | no |
+
+The `openai` driver uses OpenAI's [Decisions API](https://developers.openai.com/api/docs/guides/decisions),
+which answers the same three primitives natively: `noul` is sent as a `predicate`, `choice` and
+`score` map one to one (score levels are 0-indexed, like Jev; same limits of 255 options and 2–10
+levels). Structured descriptions and noul `true` / `false` criteria are rendered as plain text, and
+the state is sent as `input` (JSON-encoded when it is not a string; a `null` state is rejected).
+The API rejects unknown body fields, so `merge_body` only works for fields it documents. The `openai_responses` driver
+asks a general model to fill a JSON schema instead, and works with any Responses API model.
 
 Register your own with `EngineManager::extend('name', fn (array $config): Engine => …)` or
 `register('name', $engineInstance)`. Switching engines with `using()` clears a previously set
@@ -437,9 +447,10 @@ one ~100 ms call. Detailed guidance: <https://docs.typesafe.ai>.
 
 ## Calibrated vs. uncalibrated engines
 
-Jev's probabilities are **calibrated**: confidence-gating on them is the point. The OpenAI and
-Anthropic engines ask a general LLM to fill a JSON schema with probabilities in one call; those
-numbers are **self-reported and uncalibrated**. Every outcome tells you which you got:
+Jev's probabilities are **calibrated**: confidence-gating on them is the point. The OpenAI
+Responses and Anthropic engines ask a general LLM to fill a JSON schema with probabilities in one
+call; those numbers are **self-reported and uncalibrated**. OpenAI's Decisions API (`openai`) is a
+dedicated System One endpoint and is treated as calibrated. Every outcome tells you which you got:
 
 ```php
 if (! $outcome->meta->calibrated) {
