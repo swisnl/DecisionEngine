@@ -427,6 +427,61 @@ Decision::fake(['urgent' => Fake::noul(0.9)]);
 Decision::assertDecided(fn (DecisionRequest $r) => $r->hasQuestion('urgent'));
 ```
 
+### Collections
+
+The bridge adds macros to `Collection`, `LazyCollection` and Eloquent collections that decide about
+every item and filter, sort, group or partition on the answer. Each item is one decision; items are
+decided concurrently, and a `LazyCollection` is decided in chunks of 100 so it streams.
+
+```php
+$tickets->whereNoul('is_spam', 'Is this message spam?', threshold: 0.9, state: 'body');
+$tickets->whereNotNoul('is_spam', 'Is this message spam?', state: 'body');
+$tickets->whereChoice('department', 'Which team?', $options, is: ['billing', 'returns'], minConfidence: 0.7);
+$tickets->whereScore('severity', 'How severe?', $levels, '>=', 1.5, state: ['subject', 'body']);
+
+$results->sortByScoreDesc('relevance', "How relevant is this to: {$query}?", $levels, state: 'summary');
+$results->sortByNoul(...);  $results->sortByNoulDesc(...);  $results->sortByScore(...);
+$tickets->groupByChoice('department', 'Which team?', $options, state: 'body');   // keyed by option
+[$spam, $ham] = $tickets->partitionByNoul('is_spam', 'Is this spam?', state: 'body');
+
+// several questions, any predicate
+$tickets->whereDecision(
+    fn (BatchDecision $d) => $d->noul('urgent', 'Is this urgent?')->score('severity', 'How severe?', $levels),
+    fn (Outcome $o) => $o->urgent->isTrue(0.8) && $o->severity->atLeast(1.5),
+    state: fn (Ticket $t) => ['message' => $t->body],
+);
+$outcomes = $tickets->decide(fn (BatchDecision $d) => …, state: 'body');   // Collection<key, Outcome>
+```
+
+A question is an id with instructions (and options or levels), or a question object such as
+`Noul::make(...)->criteria(...)`. Keys are preserved. Every macro also takes:
+
+- `state:` a closure `($item, $key)`, an attribute name or a list of names (read with `data_get`).
+  Without it, an item implementing `ProvidesDecisionState` sends `toDecisionState()` and anything else
+  is sent as-is, except Eloquent models: those throw instead of sending every column.
+- `using:` / `model:` the engine and model; `concurrency:` the batch concurrency.
+- `settle:` by default any failure throws `ParallelFailedException` after the batch ran; `true` leaves
+  failed items out of the result, and a closure `(\Throwable $e, $item, $key)` is also told about each.
+
+There are deliberately no query builder macros: the model cannot run in SQL, so fetch first
+(`->get()` or `->lazy()`). For a single model, `HasDecisions` adds `$ticket->decision()`, a
+`Decision` with `toDecisionState()` as its state:
+
+```php
+class Ticket extends Model implements ProvidesDecisionState
+{
+    use HasDecisions;
+
+    public function toDecisionState(): mixed
+    {
+        return ['subject' => $this->subject, 'message' => $this->body];
+    }
+}
+
+Ticket::where('status', 'open')->lazy()->whereNoul('is_spam', 'Is this spam?', settle: true);
+$ticket->decision()->noul('urgent', 'Is this urgent?')->decide();
+```
+
 `Decided` and `DecisionFailed` events are dispatched for every decision. With
 `DECISION_ENGINE_TRANSPORT=laravel` requests go through the `Http` client so `Http::fake()`
 intercepts them; that transport is sequential, so `parallel()` runs one request at a time.

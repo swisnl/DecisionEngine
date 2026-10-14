@@ -6,6 +6,12 @@ All notable changes to `swis/decision-engine` are documented here. The format fo
 ## [Unreleased]
 
 ### Added
+- Laravel collection macros on `Collection`, `LazyCollection` and Eloquent collections: `whereNoul`,
+  `whereNotNoul`, `whereChoice`, `whereScore`, `whereDecision`, `sortByScore(Desc)`,
+  `sortByNoul(Desc)`, `groupByChoice`, `partitionByNoul` and `decide`. Items are decided
+  concurrently (a LazyCollection per chunk of 100); `state:` picks what is sent per item and
+  `settle:` leaves failed items out instead of throwing.
+- `ProvidesDecisionState` and the `HasDecisions` model trait (`$ticket->decision()`).
 - `OpenAiEngine` (driver `openai`) for OpenAI's Decisions API (`POST /v1/decisions`, default model
   `gpt-6-luna`, calibrated): `noul` → `predicate`, `choice` and `score` natively, refusals raise a
   `ResponseValidationException`. The `luna` named engine now uses it.

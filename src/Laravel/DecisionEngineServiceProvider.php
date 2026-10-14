@@ -16,6 +16,7 @@ use Swis\DecisionEngine\Config;
 use Swis\DecisionEngine\Contracts\Transport;
 use Swis\DecisionEngine\Decision;
 use Swis\DecisionEngine\Engines\EngineManager;
+use Swis\DecisionEngine\Laravel\Collections\CollectionMacros;
 use Swis\DecisionEngine\Laravel\Console\ModelsCommand;
 use Swis\DecisionEngine\Laravel\Console\TryCommand;
 use Swis\DecisionEngine\Laravel\Events\Decided;
@@ -28,7 +29,8 @@ use Swis\DecisionEngine\Transport\CurlTransport;
 /**
  * Laravel bridge: binds `Config`, `EngineManager`, `Transport` and `Client` as singletons, points
  * the static `Decision::…` entry points at the container, publishes the config file, registers the
- * artisan commands and dispatches `Decided` / `DecisionFailed` events.
+ * artisan commands, dispatches `Decided` / `DecisionFailed` events and registers the collection
+ * macros (`whereNoul`, `sortByScore`, `groupByChoice`, …; see `CollectionMacros`).
  *
  * ```bash
  * php artisan vendor:publish --tag=decision-engine-config
@@ -88,6 +90,8 @@ final class DecisionEngineServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        CollectionMacros::register();
+
         if ($this->app->runningInConsole()) {
             $this->publishes([__DIR__ . '/../../config/decision-engine.php' => $this->app->configPath('decision-engine.php')], 'decision-engine-config');
             $this->commands([ModelsCommand::class, TryCommand::class]);
