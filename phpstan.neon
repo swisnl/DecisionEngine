@@ -14,3 +14,7 @@ parameters:
         -
             identifier: trait.unused
             path: src/Testing/InteractsWithDecisions.php
+        # Consumer-facing model trait; nothing inside this package uses it.
+        -
+            identifier: trait.unused
+            path: src/Laravel/HasDecisions.php
