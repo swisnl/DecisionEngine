@@ -1,9 +1,13 @@
 # Changelog
 
-All notable changes to `swis/decision-engine` are documented here. The format follows
+All notable changes to `swisnl/decision-engine` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows semantic versioning.
 
 ## [Unreleased]
+
+### Changed
+- The Composer package is renamed from `swis/decision-engine` to `swisnl/decision-engine`. The
+  `Swis\DecisionEngine` namespace is unchanged.
 
 ### Added
 - Laravel collection macros on `Collection`, `LazyCollection` and Eloquent collections: `whereNoul`,

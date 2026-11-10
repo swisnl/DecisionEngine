@@ -1,5 +1,5 @@
-# PHPStan support for swis/decision-engine. Loaded automatically by phpstan/extension-installer,
-# otherwise add `includes: [vendor/swis/decision-engine/extension.neon]` to your phpstan.neon.
+# PHPStan support for swisnl/decision-engine. Loaded automatically by phpstan/extension-installer,
+# otherwise add `includes: [vendor/swisnl/decision-engine/extension.neon]` to your phpstan.neon.
 services:
     -
         class: Swis\DecisionEngine\PHPStan\TypedOutcomePropertiesExtension

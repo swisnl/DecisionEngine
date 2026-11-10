@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Package name
+
+The package is now `swisnl/decision-engine`. Replace `swis/decision-engine` in your `composer.json`
+`require`, and update any `vendor/swis/decision-engine/extension.neon` include in `phpstan.neon`.
+The `Swis\DecisionEngine` namespace is unchanged.
+
 ### OpenAI engines
 
 The `openai` driver now targets OpenAI's Decisions API (`/v1/decisions`, `gpt-6-luna`). The previous

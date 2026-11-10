@@ -62,7 +62,7 @@ answers.
 ## Installation
 
 ```bash
-composer require swis/decision-engine
+composer require swisnl/decision-engine
 ```
 
 Requires PHP 8.3+, `ext-curl` and `ext-json`. Nothing else for the core; the Laravel bridge is
@@ -271,7 +271,7 @@ Other properties on the class are left alone and constructors are not called.
 `readonly` properties are assigned by the library, which PHPStan cannot see. The package's
 `extension.neon` teaches it that; it loads automatically with
 [phpstan/extension-installer](https://github.com/phpstan/extension-installer), otherwise add
-`vendor/swis/decision-engine/extension.neon` to `includes` in your `phpstan.neon`.
+`vendor/swisnl/decision-engine/extension.neon` to `includes` in your `phpstan.neon`.
 
 ## Escape hatches
 
